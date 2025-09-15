@@ -6,7 +6,11 @@
 <title>House Cost of Construction</title>
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; background: #f4f6f8; }
-h1 { text-align: center; }
+h1 { text-align: center; margin-bottom: 20px; }
+.summary-box { display: flex; justify-content: space-around; margin-bottom: 20px; }
+.box { background: #0077cc; color: #fff; padding: 20px; width: 150px; text-align: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);}
+.box h2 { margin: 0 0 5px; font-size: 16px; }
+.box p { margin: 0; font-size: 18px; font-weight: bold; }
 .form-group { margin-bottom: 10px; }
 label { display: inline-block; width: 120px; font-weight: bold; }
 input, select { padding: 5px; width: 200px; }
@@ -23,7 +27,23 @@ tfoot td { font-weight: bold; }
 </style>
 </head>
 <body>
-<h1>Construction of House </h1>
+<h1>House Cost of Construction</h1>
+
+<!-- Grand Total Summary Box -->
+<div class="summary-box">
+  <div class="box">
+    <h2>Total Cost</h2>
+    <p id="summaryTotal">0</p>
+  </div>
+  <div class="box">
+    <h2>Total Paid</h2>
+    <p id="summaryPaid">0</p>
+  </div>
+  <div class="box">
+    <h2>Total Left</h2>
+    <p id="summaryLeft">0</p>
+  </div>
+</div>
 
 <!-- Form to add record -->
 <div class="form-group">
@@ -146,9 +166,17 @@ function renderTable() {
     paid+=rec.amountPaid;
     left+=leftAmount;
   });
+
+  // Update grand totals in table footer
   document.getElementById("grandTotal").textContent=total;
   document.getElementById("grandPaid").textContent=paid;
   document.getElementById("grandLeft").textContent=left;
+
+  // Update top summary box
+  document.getElementById("summaryTotal").textContent = total;
+  document.getElementById("summaryPaid").textContent = paid;
+  document.getElementById("summaryLeft").textContent = left;
+
   updatePersonFilter();
 }
 
@@ -207,33 +235,4 @@ function exportExcel(){
   const filterPerson = document.getElementById("personFilter").value;
   const exportRecords = filterPerson?records.filter(r=>r.person===filterPerson):records;
   exportRecords.forEach(r=>{
-    const historyStr = r.history.map(h=>`${h.date}: +${h.added} → Total ${h.amountPaid}`).join("\n");
-    ws_data.push([r.date,r.material,r.person,r.totalCost,r.amountPaid,r.totalCost-r.amountPaid,historyStr]);
-  });
-  ws_data.push(["Grand Total","","",getTotals(exportRecords).total,getTotals(exportRecords).paid,getTotals(exportRecords).left,""]);
-  const ws=XLSX.utils.aoa_to_sheet(ws_data);
-  XLSX.utils.book_append_sheet(wb,ws,"Records");
-  XLSX.writeFile(wb,"Construction_Records.xlsx");
-}
-
-// Export PDF
-function exportPDF(){
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.text("House Cost of Construction",14,15);
-  const filterPerson = document.getElementById("personFilter").value;
-  const exportRecords = filterPerson?records.filter(r=>r.person===filterPerson):records;
-  const tableData = exportRecords.map(r=>[
-    r.date,r.material,r.person,r.totalCost,r.amountPaid,r.totalCost-r.amountPaid,
-    r.history.map(h=>`${h.date}: +${h.added} → Total ${h.amountPaid}`).join("\n")
-  ]);
-  tableData.push(["Grand Total","","",getTotals(exportRecords).total,getTotals(exportRecords).paid,getTotals(exportRecords).left,""]);
-  doc.autoTable({head:[["Date","Material","Person","Total Cost","Paid","Left","History"]],body:tableData,startY:20});
-  doc.save("Construction_Records.pdf");
-}
-
-// Initial render
-renderTable();
-</script>
-</body>
-</html>
+    const historyStr = r.history.map(h=>`${h.date}: +${h.added} → Total ${h.amountPaid}`).join("\
