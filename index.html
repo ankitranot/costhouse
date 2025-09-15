@@ -27,14 +27,14 @@
       color: #000;
     }
     main {
-      max-width: 800px;
+      max-width: 900px;
       width: 100%;
       padding: 20px;
     }
     label {
       font-weight: bold;
     }
-    input, button {
+    input, button, select {
       padding: 10px;
       margin: 5px 0;
       border: 1px solid #000;
@@ -70,7 +70,7 @@
       header h1 {
         font-size: 22px;
       }
-      input, button {
+      input, button, select {
         font-size: 14px;
       }
       th, td {
@@ -84,8 +84,14 @@
     <h1>Construction Cost</h1>
   </header>
   <main>
+    <label for="type">Transaction Type:</label>
+    <select id="type">
+      <option value="credit">Credit (+)</option>
+      <option value="debit">Debit (-)</option>
+    </select>
+
     <label for="amount">Enter Amount:</label>
-    <input type="number" id="amount" placeholder="Enter cost" />
+    <input type="number" id="amount" placeholder="Enter amount" />
 
     <label for="remark">Remark:</label>
     <input type="text" id="remark" placeholder="Enter remark (optional)" />
@@ -95,8 +101,10 @@
     <table>
       <thead>
         <tr>
+          <th>Sl. No.</th>
           <th>Date</th>
-          <th>Amount</th>
+          <th>Debit (-)</th>
+          <th>Credit (+)</th>
           <th>Balance</th>
           <th>Remark</th>
         </tr>
@@ -114,6 +122,7 @@
   storageBucket: "costhouse25.firebasestorage.app",
   messagingSenderId: "1031854363789",
   appId: "1:1031854363789:web:2db3e48f1c774a12297ec4"
+
     };
 
     // Initialize Firebase
@@ -123,18 +132,24 @@
     let totalBalance = 0;
 
     // Add record
-    function addRecord() {
+    window.addRecord = function() {
+      const type = document.getElementById("type").value;
       const amountInput = document.getElementById("amount");
       const remarkInput = document.getElementById("remark");
 
       const amount = parseFloat(amountInput.value);
       if (isNaN(amount) || amount <= 0) return;
 
-      totalBalance += amount;
+      if (type === "credit") {
+        totalBalance += amount;
+      } else {
+        totalBalance -= amount;
+      }
 
       const record = {
         date: new Date().toLocaleDateString(),
-        amount: amount,
+        debit: type === "debit" ? amount : "",
+        credit: type === "credit" ? amount : "",
         balance: totalBalance,
         remark: totalBalance === 0 ? "Nill" : (remarkInput.value || "-")
       };
@@ -151,14 +166,20 @@
       const historyEl = document.getElementById("history");
       historyEl.innerHTML = "";
       totalBalance = 0;
+      let count = 0;
 
       snapshot.forEach(child => {
         const record = child.val();
-        totalBalance = record.balance; // update running balance
+        count++;
+
+        // update running balance
+        totalBalance = record.balance;
 
         const row = `<tr>
+          <td>${count}</td>
           <td>${record.date}</td>
-          <td>${record.amount}</td>
+          <td>${record.debit || ""}</td>
+          <td>${record.credit || ""}</td>
           <td>${record.balance}</td>
           <td>${record.remark}</td>
         </tr>`;
