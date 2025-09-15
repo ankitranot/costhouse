@@ -51,7 +51,7 @@
       color:#111;
     }
     button {
-      background:#000;
+      background:#fff;
       color:#fff;
       border:none;
       padding:10px 18px;
@@ -59,9 +59,7 @@
       cursor:pointer;
       font-size:17px;
     }
-    button:hover {
-      background:#333;
-    }
+    
     .summary-box {
       background:#222;
       color:white;
@@ -143,11 +141,7 @@
       <tbody></tbody>
     </table>
 
-    <div class="export-buttons">
-      <button onclick="exportExcel()">Export Excel</button>
-      <button onclick="exportPDF()">Export PDF</button>
-    </div>
-  </div>
+   
 
 <script>
 // ---------------- Firebase Setup ----------------
@@ -249,46 +243,9 @@ function getTotals(filteredRecords){
   return {total,paid,left};
 }
 
-// ---------------- Export Excel ----------------
-function exportExcel(){
-  const wb=XLSX.utils.book_new();
-  const ws_data=[["Date","Material","Person","Total Cost","Paid","Left","History"]];
-  const filterPerson=document.getElementById("personFilter").value;
-  const exportRecords=filterPerson?records.filter(r=>r.person===filterPerson):records;
-  exportRecords.forEach(r=>{
-    const historyStr=r.history.map(h=>`${h.date}: +${h.added}`).join("\n");
-    ws_data.push([r.date,r.material,r.person,r.totalCost,r.amountPaid,r.totalCost-r.amountPaid,historyStr]);
-  });
-  const totals=getTotals(exportRecords);
-  ws_data.push(["Grand Total","","",totals.total,totals.paid,totals.left,""]);
-  const ws=XLSX.utils.aoa_to_sheet(ws_data);
-  ws['!cols']=[{wch:15},{wch:20},{wch:20},{wch:15},{wch:15},{wch:15},{wch:40}];
-  XLSX.utils.book_append_sheet(wb,ws,"Records");
-  XLSX.writeFile(wb,"Construction_Records.xlsx");
-}
 
-// ---------------- Export PDF ----------------
-function exportPDF(){
-  const { jsPDF }=window.jspdf; const doc=new jsPDF();
-  doc.setFontSize(16); doc.text("House Cost of Construction",14,15);
-  const filterPerson=document.getElementById("personFilter").value;
-  const exportRecords=filterPerson?records.filter(r=>r.person===filterPerson):records;
-  const tableData=exportRecords.map(r=>[
-    r.date,r.material,r.person,r.totalCost,r.amountPaid,r.totalCost-r.amountPaid,
-    r.history.map(h=>`${h.date}: +${h.added}`).join("\n")
-  ]);
-  const totals=getTotals(exportRecords);
-  tableData.push(["Grand Total","","",totals.total,totals.paid,totals.left,""]);
-  doc.autoTable({
-    head:[["Date","Material","Person","Total Cost","Paid","Left","History"]],
-    body:tableData,
-    startY:25,
-    styles:{fontSize:10,cellPadding:3},
-    headStyles:{fillColor:[0,0,0],textColor:255},
-    alternateRowStyles:{fillColor:[245,245,245]}
-  });
-  doc.save("Construction_Records.pdf");
-}
+
+
 </script>
 </body>
 </html>
