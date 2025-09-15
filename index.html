@@ -20,12 +20,9 @@
   .history { font-size: 13px; text-align: left; }
   details { cursor: pointer; }
 
-  /* MOBILE CARD VIEW */
   @media(max-width:768px){
     h2 { font-size: 22px; }
     .grand-total { font-size: 18px; padding: 8px 15px; }
-    
-    /* Stack inputs and button vertically, full width */
     .form-group { flex-direction: column; }
     input, button, select { width: 100%; margin-bottom: 8px; }
 
@@ -33,14 +30,7 @@
     thead { display: none; }
     tr { border: 1px solid #000; margin-bottom: 15px; border-radius: 8px; padding: 10px; }
     td { border: none; text-align: left; padding: 6px 0; }
-    td::before {
-      content: attr(data-label);
-      font-weight: bold;
-      display: inline-block;
-      width: 100px;
-    }
-
-    /* Buttons inside table rows full width */
+    td::before { content: attr(data-label); font-weight: bold; display: inline-block; width: 100px; }
     td[data-label="Actions"] button { width: 48%; margin-right: 4%; margin-bottom: 5px; }
   }
 </style>
@@ -97,6 +87,7 @@ const db = firebase.firestore();
 
 let records = [];
 
+// Add or merge record if person exists
 async function addOrUpdateRecord() {
   const category = document.getElementById("category").value.trim();
   const cost = parseFloat(document.getElementById("cost").value) || 0;
@@ -141,12 +132,14 @@ async function addOrUpdateRecord() {
   document.getElementById("person").value = "";
 }
 
+// Load live records
 db.collection("records").onSnapshot(snapshot => {
   records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   updateFilterOptions();
   renderTable();
 });
 
+// Filter options
 function updateFilterOptions() {
   const filterSelect = document.getElementById("filterPerson");
   const persons = [...new Set(records.map(r => r.person))];
@@ -159,6 +152,7 @@ function updateFilterOptions() {
   });
 }
 
+// Render table
 function renderTable() {
   const tbody = document.querySelector("#recordsTable tbody");
   tbody.innerHTML = "";
@@ -175,11 +169,10 @@ function renderTable() {
       <td data-label="Paid">${record.paid}</td>
       <td data-label="Left">${record.left}</td>
       <td data-label="Remarks">${record.remarks}</td>
-      <td data-label="History">
-        <details><summary>Show</summary>${record.history.join("<br>")}</details>
-      </td>
+      <td data-label="History"><details><summary>Show</summary>${record.history.join("<br>")}</details></td>
       <td data-label="Actions">
-        <button onclick="updateRow('${record.id}')">Update</button>
+        <button onclick="credit('${record.id}')">Credit</button>
+        <button onclick="debit('${record.id}')">Debit</button>
         <button onclick="deleteRow('${record.id}')">Delete</button>
       </td>
     `;
@@ -190,23 +183,18 @@ function renderTable() {
   document.getElementById("grandTotalBox").textContent = "Grand Total: " + totalSum;
 }
 
-async function deleteRow(id) {
-  if (confirm("Delete this record?")) {
-    await db.collection("records").doc(id).delete();
-  }
-}
-
-async function updateRow(id) {
-  const addCost = parseFloat(prompt("Enter additional cost:")) || 0;
+// Credit row
+async function credit(id) {
+  const addTotal = parseFloat(prompt("Enter additional total cost:")) || 0;
   const addPaid = parseFloat(prompt("Enter additional paid amount:")) || 0;
-  if (addCost <= 0 && addPaid <= 0) return;
+  if (addTotal <= 0 && addPaid <= 0) return;
 
   const docRef = db.collection("records").doc(id);
   const docSnap = await docRef.get();
   if (!docSnap.exists) return;
 
   const data = docSnap.data();
-  const newTotal = data.total + addCost;
+  const newTotal = data.total + addTotal;
   const newPaid = data.paid + addPaid;
   const newLeft = newTotal - newPaid;
   const newHistory = [...data.history, `+${addPaid} on ${new Date().toLocaleString()}`];
@@ -218,6 +206,38 @@ async function updateRow(id) {
     history: newHistory,
     remarks: newLeft === 0 ? "Nil" : ""
   });
+}
+
+// Debit row
+async function debit(id) {
+  const subTotal = parseFloat(prompt("Enter total cost to remove:")) || 0;
+  const subPaid = parseFloat(prompt("Enter paid amount to remove:")) || 0;
+  if (subTotal <= 0 && subPaid <= 0) return;
+
+  const docRef = db.collection("records").doc(id);
+  const docSnap = await docRef.get();
+  if (!docSnap.exists) return;
+
+  const data = docSnap.data();
+  const newTotal = Math.max(0, data.total - subTotal);
+  const newPaid = Math.max(0, data.paid - subPaid);
+  const newLeft = Math.max(0, newTotal - newPaid);
+  const newHistory = [...data.history, `-${subPaid} on ${new Date().toLocaleString()}`];
+
+  await docRef.update({
+    total: newTotal,
+    paid: newPaid,
+    left: newLeft,
+    history: newHistory,
+    remarks: newLeft === 0 ? "Nil" : ""
+  });
+}
+
+// Delete row
+async function deleteRow(id) {
+  if (confirm("Delete this record?")) {
+    await db.collection("records").doc(id).delete();
+  }
 }
 </script>
 </body>
