@@ -8,9 +8,10 @@
 body { font-family: Arial, sans-serif; margin: 20px; background: #f4f6f8; }
 h1 { text-align: center; margin-bottom: 20px; }
 .summary-box { display: flex; justify-content: space-around; margin-bottom: 20px; }
-.box { background: #0077cc; color: #fff; padding: 20px; width: 150px; text-align: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);}
+.box { color: #fff; padding: 20px; width: 150px; text-align: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2);}
 .box h2 { margin: 0 0 5px; font-size: 16px; }
 .box p { margin: 0; font-size: 18px; font-weight: bold; }
+.box#boxTotal { background: #0077cc; } /* Total Cost always blue */
 .form-group { margin-bottom: 10px; }
 label { display: inline-block; width: 120px; font-weight: bold; }
 input, select { padding: 5px; width: 200px; }
@@ -31,15 +32,15 @@ tfoot td { font-weight: bold; }
 
 <!-- Grand Total Summary Box -->
 <div class="summary-box">
-  <div class="box">
+  <div class="box" id="boxTotal">
     <h2>Total Cost</h2>
     <p id="summaryTotal">0</p>
   </div>
-  <div class="box">
+  <div class="box" id="boxPaid">
     <h2>Total Paid</h2>
     <p id="summaryPaid">0</p>
   </div>
-  <div class="box">
+  <div class="box" id="boxLeft">
     <h2>Total Left</h2>
     <p id="summaryLeft">0</p>
   </div>
@@ -107,9 +108,7 @@ tfoot td { font-weight: bold; }
 let records = JSON.parse(localStorage.getItem("constructionRecords")) || [];
 
 // Save to localStorage
-function saveRecords() {
-  localStorage.setItem("constructionRecords", JSON.stringify(records));
-}
+function saveRecords() { localStorage.setItem("constructionRecords", JSON.stringify(records)); }
 
 // Update person filter dropdown
 function updatePersonFilter() {
@@ -143,6 +142,16 @@ function renderTable() {
   filteredRecords.forEach((rec,i)=>{
     const tr=document.createElement("tr");
     const leftAmount = rec.totalCost - rec.amountPaid;
+
+    // Set row color based on payment status
+    if(rec.amountPaid >= rec.totalCost) {
+      tr.style.backgroundColor = "#c8e6c9"; // light green
+    } else if(rec.amountPaid > 0) {
+      tr.style.backgroundColor = "#fff9c4"; // light yellow
+    } else {
+      tr.style.backgroundColor = "#ffcdd2"; // light red
+    }
+
     const historyId = "history-"+i;
     const historyHTML = rec.history ? rec.history.map(h=>`${h.date}: +${h.added} → Total ${h.amountPaid}`).join('<br>') : '';
     tr.innerHTML=`
@@ -172,9 +181,15 @@ function renderTable() {
   document.getElementById("grandPaid").textContent=paid;
   document.getElementById("grandLeft").textContent=left;
 
-  // Update top summary box
+  // Update top summary box with color coding
   document.getElementById("summaryTotal").textContent = total;
+
+  if(paid >= total) document.getElementById("boxPaid").style.background = "#4caf50"; // green
+  else document.getElementById("boxPaid").style.background = "#81c784"; // lighter green
   document.getElementById("summaryPaid").textContent = paid;
+
+  if(left > 0) document.getElementById("boxLeft").style.background = "#f44336"; // red
+  else document.getElementById("boxLeft").style.background = "#9e9e9e"; // gray if nothing left
   document.getElementById("summaryLeft").textContent = left;
 
   updatePersonFilter();
@@ -235,4 +250,33 @@ function exportExcel(){
   const filterPerson = document.getElementById("personFilter").value;
   const exportRecords = filterPerson?records.filter(r=>r.person===filterPerson):records;
   exportRecords.forEach(r=>{
-    const historyStr = r.history.map(h=>`${h.date}: +${h.added} → Total ${h.amountPaid}`).join("\
+    const historyStr = r.history.map(h=>`${h.date}: +${h.added} → Total ${h.amountPaid}`).join("\n");
+    ws_data.push([r.date,r.material,r.person,r.totalCost,r.amountPaid,r.totalCost-r.amountPaid,historyStr]);
+  });
+  ws_data.push(["Grand Total","","",getTotals(exportRecords).total,getTotals(exportRecords).paid,getTotals(exportRecords).left,""]);
+  const ws=XLSX.utils.aoa_to_sheet(ws_data);
+  XLSX.utils.book_append_sheet(wb,ws,"Records");
+  XLSX.writeFile(wb,"Construction_Records.xlsx");
+}
+
+// Export PDF
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.text("House Cost of Construction",14,15);
+  const filterPerson = document.getElementById("personFilter").value;
+  const exportRecords = filterPerson?records.filter(r=>r.person===filterPerson):records;
+  const tableData = exportRecords.map(r=>[
+    r.date,r.material,r.person,r.totalCost,r.amountPaid,r.totalCost-r.amountPaid,
+    r.history.map(h=>`${h.date}: +${h.added} → Total ${h.amountPaid}`).join("\n")
+  ]);
+  tableData.push(["Grand Total","","",getTotals(exportRecords).total,getTotals(exportRecords).paid,getTotals(exportRecords).left,""]);
+  doc.autoTable({head:[["Date","Material","Person","Total Cost","Paid","Left","History"]],body:tableData,startY:20});
+  doc.save("Construction_Records.pdf");
+}
+
+// Initial render
+renderTable();
+</script>
+</body>
+</html>
