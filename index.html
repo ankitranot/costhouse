@@ -1,283 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cost of Construction</title>
-
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-
-  <style>
-    body {
-      font-family: "Segoe UI", sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #fafafa;
-      color: #111;
-      font-size: 17px;
-    }
-    header {
-      background: #fff;
-      color: #000;
-      padding: 20px;
-      text-align: center;
-      font-size: 28px;
-      font-weight: bold;
-    }
-    .container {
-      max-width: 1000px;
-      margin: 20px auto;
-      background: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.1);
-    }
-    .summary-box {
-      border: 2px solid #000;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      text-align: center;
-      font-size: 20px;
-      font-weight: bold;
-    }
-    .form-group {
-      display: flex;
-      flex-wrap: wrap;
-      margin-bottom: 15px;
-      gap: 10px;
-    }
-    .form-group input, .form-group select {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid #aaa;
-      border-radius: 6px;
-      font-size: 16px;
-      background: #fff;
-      color: #111;
-      min-width: 150px;
-    }
-    button {
-      background: #000;
-      color: #fff;
-      border: none;
-      padding: 10px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 15px;
-      transition: 0.2s;
-    }
-    button:hover {
-      opacity: 0.85;
-    }
-    .table-wrapper {
-      overflow-x: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-      font-size: 15px;
-      min-width: 600px;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 8px;
-      text-align: center;
-      white-space: nowrap;
-    }
-    th {
-      background: #000;
-      color: #fff;
-    }
-    .history {
-      font-size: 14px;
-      color: #444;
-      text-align: left;
-    }
-    @media (max-width: 768px) {
-      header {
-        font-size: 22px;
-        padding: 15px;
-      }
-      .container {
-        padding: 15px;
-        margin: 10px;
-      }
-      .form-group {
-        flex-direction: column;
-      }
-      .form-group input, .form-group select, button {
-        width: 100%;
-        font-size: 15px;
-      }
-      .summary-box {
-        font-size: 18px;
-        padding: 10px;
-      }
-      table {
-        font-size: 14px;
-      }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Construction Cost</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; color: #000; background: #fff; }
+  h2 { font-weight: bold; font-size: 24px; margin-bottom: 20px; text-align: center; }
+  .form-group { margin-bottom: 10px; }
+  input, button, select { padding: 8px; margin-right: 5px; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 15px; }
+  th, td { border: 1px solid #000; padding: 8px; text-align: center; }
+  th { background: #f2f2f2; }
+  .history { margin-top: 10px; font-size: 13px; text-align: left; }
+  .grand-total { font-weight: bold; font-size: 20px; text-align: center; margin-bottom: 20px; border: 2px solid #000; display: inline-block; padding: 10px 20px; }
+  details { cursor: pointer; }
+  @media(max-width:768px){
+    input, button, select { width: 100%; margin-bottom: 8px; }
+  }
+</style>
 </head>
 <body>
-  <header>Cost of Construction</header>
 
-  <div class="container">
-    <div class="summary-box">Total Amount: <span id="grandTotal">0</span></div>
+<h2>Construction Cost</h2>
+<div class="grand-total" id="grandTotalBox">Grand Total: 0</div>
 
-    <div class="form-group">
-      <input type="text" id="material" placeholder="Material / Item">
-      <input type="text" id="person" placeholder="Person Name">
-      <input type="number" id="cost" placeholder="Total Cost">
-      <input type="number" id="paid" placeholder="Amount Paid">
-      <button onclick="addRecord()">Add</button>
-    </div>
+<div class="form-group">
+  <input type="text" id="material" placeholder="Material Name">
+  <input type="number" id="cost" placeholder="Total Cost">
+  <input type="number" id="paid" placeholder="Paid Amount">
+  <input type="text" id="person" placeholder="Person Name">
+  <button onclick="addOrUpdateRecord()">Add / Update</button>
+</div>
 
-    <div class="form-group">
-      <label for="personFilter"><b>Filter by Person:</b></label>
-      <select id="personFilter" onchange="renderTable()">
-        <option value="">All</option>
-      </select>
-    </div>
+<div class="form-group">
+  <label>Filter by Person:</label>
+  <select id="filterPerson" onchange="filterTable()">
+    <option value="all">All</option>
+  </select>
+</div>
 
-    <div class="table-wrapper">
-      <table id="recordsTable">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Material</th>
-            <th>Person</th>
-            <th>Total Cost</th>
-            <th>Paid</th>
-            <th>Left</th>
-            <th>History</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
+<table id="recordsTable">
+  <thead>
+    <tr>
+      <th>Person</th>
+      <th>Material</th>
+      <th>Total Cost</th>
+      <th>Paid</th>
+      <th>Left</th>
+      <th>Remarks</th>
+      <th>History</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
 <script>
-  // ---------------- Firebase Setup ----------------
-  const firebaseConfig = {
-    apiKey: "AIzaSyBV7tHimRYOI-zEN-4eythyPc39bafLHVY",
-    authDomain: "costhouse25.firebaseapp.com",
-    projectId: "costhouse25",
-    storageBucket: "costhouse25.firebasestorage.app",
-    messagingSenderId: "1031854363789",
-    appId: "1:1031854363789:web:2db3e48f1c774a12297ec4"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.firestore();
+let records = [];
 
-  let records = [];
+function addOrUpdateRecord() {
+  const material = document.getElementById("material").value.trim();
+  const cost = parseFloat(document.getElementById("cost").value) || 0;
+  const paid = parseFloat(document.getElementById("paid").value) || 0;
+  const person = document.getElementById("person").value.trim();
 
-  // ---------------- Add Record ----------------
-  async function addRecord() {
-    const material = document.getElementById("material").value;
-    const person = document.getElementById("person").value;
-    const cost = parseFloat(document.getElementById("cost").value) || 0;
-    const paid = parseFloat(document.getElementById("paid").value) || 0;
+  if (!person || !material || cost <= 0) {
+    alert("Please fill all required fields (Person, Material, Cost).");
+    return;
+  }
 
-    if (!material || !person || cost <= 0) {
-      alert("Please fill material, person, and cost.");
-      return;
-    }
+  let existingRecord = records.find(r => r.person === person);
 
-    const date = new Date().toLocaleDateString();
-    const record = {
-      date,
-      material,
+  if (existingRecord) {
+    existingRecord.total += cost;
+    existingRecord.paid += paid;
+    existingRecord.left = existingRecord.total - existingRecord.paid;
+    existingRecord.remarks = existingRecord.left === 0 ? "Nil" : "";
+    existingRecord.materials.push(material);
+    existingRecord.history.push(`+${paid} paid on ${new Date().toLocaleString()} for ${material}`);
+  } else {
+    let left = cost - paid;
+    records.push({
       person,
-      totalCost: cost,
-      amountPaid: paid,
-      history: [{ date, added: paid }]
-    };
+      materials: [material],
+      total: cost,
+      paid,
+      left,
+      remarks: left === 0 ? "Nil" : "",
+      history: [`+${paid} paid on ${new Date().toLocaleString()} for ${material}`]
+    });
 
-    await db.collection("constructionRecords").add(record);
-
-    document.getElementById("material").value = "";
-    document.getElementById("person").value = "";
-    document.getElementById("cost").value = "";
-    document.getElementById("paid").value = "";
+    const filterSelect = document.getElementById("filterPerson");
+    let option = document.createElement("option");
+    option.value = person;
+    option.textContent = person;
+    filterSelect.appendChild(option);
   }
 
-  // ---------------- Load Records Live ----------------
-  db.collection("constructionRecords").onSnapshot(snapshot => {
-    records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    updatePersonFilter();
-    renderTable();
+  renderTable();
+  updateGrandTotal();
+
+  document.getElementById("material").value = "";
+  document.getElementById("cost").value = "";
+  document.getElementById("paid").value = "";
+  document.getElementById("person").value = "";
+}
+
+function renderTable() {
+  const tbody = document.querySelector("#recordsTable tbody");
+  tbody.innerHTML = "";
+  const filter = document.getElementById("filterPerson").value;
+
+  records.forEach((record, index) => {
+    if (filter !== "all" && record.person !== filter) return;
+
+    let row = `<tr>
+      <td>${record.person}</td>
+      <td>${record.materials.join(", ")}</td>
+      <td>${record.total}</td>
+      <td>${record.paid}</td>
+      <td>${record.left}</td>
+      <td>${record.remarks}</td>
+      <td>
+        <details>
+          <summary>Show History</summary>
+          <div class="history">${record.history.join("<br>")}</div>
+        </details>
+      </td>
+      <td>
+        <button onclick="updateRow(${index})">Update</button>
+        <button onclick="deleteRecord(${index})">Delete</button>
+      </td>
+    </tr>`;
+    tbody.innerHTML += row;
   });
+}
 
-  // ---------------- Filter Persons ----------------
-  function updatePersonFilter() {
-    const filter = document.getElementById("personFilter");
-    const persons = [...new Set(records.map(r => r.person))];
-    filter.innerHTML = '<option value="">All</option>';
-    persons.forEach(p => {
-      const opt = document.createElement("option");
-      opt.value = p;
-      opt.textContent = p;
-      filter.appendChild(opt);
-    });
+function deleteRecord(index) {
+  if (confirm("Delete this record?")) {
+    records.splice(index, 1);
+    renderTable();
+    updateGrandTotal();
   }
+}
 
-  // ---------------- Render Table ----------------
-  function renderTable() {
-    const tbody = document.querySelector("#recordsTable tbody");
-    tbody.innerHTML = "";
-    const filterPerson = document.getElementById("personFilter").value;
-    let total = 0;
+function updateRow(index) {
+  const addCost = parseFloat(prompt("Enter additional cost:")) || 0;
+  const addPaid = parseFloat(prompt("Enter additional paid amount:")) || 0;
+  const addMaterial = prompt("Enter material name for this update:").trim();
+  if (addCost <= 0 && addPaid <= 0) return;
 
-    records.filter(r => !filterPerson || r.person === filterPerson).forEach(r => {
-      const tr = document.createElement("tr");
-      const left = r.totalCost - r.amountPaid;
-      total += r.totalCost;
-      const historyHTML = r.history.map(h => `<div>${h.date} → +${h.added}</div>`).join("");
-      tr.innerHTML = `
-        <td>${r.date}</td>
-        <td>${r.material}</td>
-        <td>${r.person}</td>
-        <td>${r.totalCost}</td>
-        <td>${r.amountPaid}</td>
-        <td>${left === 0 ? "Nill" : left}</td>
-        <td class="history">${historyHTML}</td>
-        <td>
-          <button onclick="updatePaid('${r.id}')">Update Paid</button>
-          <button onclick="deleteRecord('${r.id}')">Delete</button>
-        </td>`;
-      tbody.appendChild(tr);
-    });
+  const record = records[index];
+  record.total += addCost;
+  record.paid += addPaid;
+  record.left = record.total - record.paid;
+  record.materials.push(addMaterial || "Updated");
+  record.history.push(`+${addPaid} paid on ${new Date().toLocaleString()} for ${addMaterial || "Updated"}`);
+  record.remarks = record.left === 0 ? "Nil" : "";
 
-    document.getElementById("grandTotal").textContent = total;
-  }
+  renderTable();
+  updateGrandTotal();
+}
 
-  // ---------------- Update Paid ----------------
-  async function updatePaid(id) {
-    const add = parseFloat(prompt("Enter additional amount paid:")) || 0;
-    if (add <= 0) return;
-    const date = new Date().toLocaleDateString();
-    const record = records.find(r => r.id === id);
-    const newPaid = record.amountPaid + add;
-    const newHistory = [...record.history, { date, added: add }];
-    await db.collection("constructionRecords").doc(id).update({
-      amountPaid: newPaid,
-      history: newHistory
-    });
-  }
+function updateGrandTotal() {
+  const total = records.reduce((sum, r) => sum + r.total, 0);
+  document.getElementById("grandTotalBox").textContent = "Grand Total: " + total;
+}
 
-  // ---------------- Delete Record ----------------
-  async function deleteRecord(id) {
-    if (confirm("Delete this record?")) {
-      await db.collection("constructionRecords").doc(id).delete();
-    }
-  }
+function filterTable() {
+  renderTable();
+}
 </script>
+
 </body>
 </html>
