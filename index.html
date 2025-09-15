@@ -19,6 +19,8 @@
     input, button, select { width: 100%; margin-bottom: 8px; }
   }
 </style>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -26,7 +28,7 @@
 <div class="grand-total" id="grandTotalBox">Grand Total: 0</div>
 
 <div class="form-group">
-  <input type="text" id="material" placeholder="Material Name">
+  <input type="text" id="category" placeholder="Category Name">
   <input type="number" id="cost" placeholder="Total Cost">
   <input type="number" id="paid" placeholder="Paid Amount">
   <input type="text" id="person" placeholder="Person Name">
@@ -35,7 +37,7 @@
 
 <div class="form-group">
   <label>Filter by Person:</label>
-  <select id="filterPerson" onchange="filterTable()">
+  <select id="filterPerson" onchange="renderTable()">
     <option value="all">All</option>
   </select>
 </div>
@@ -44,7 +46,7 @@
   <thead>
     <tr>
       <th>Person</th>
-      <th>Material</th>
+      <th>Category</th>
       <th>Total Cost</th>
       <th>Paid</th>
       <th>Left</th>
@@ -57,121 +59,158 @@
 </table>
 
 <script>
-let records = [];
+  // ---------------- Firebase Setup ----------------
+  const firebaseConfig = {
+    apiKey: "AIzaSyBV7tHimRYOI-zEN-4eythyPc39bafLHVY",
+    authDomain: "costhouse25.firebaseapp.com",
+    projectId: "costhouse25",
+    storageBucket: "costhouse25.firebasestorage.app",
+    messagingSenderId: "1031854363789",
+    appId: "1:1031854363789:web:2db3e48f1c774a12297ec4"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
 
-function addOrUpdateRecord() {
-  const material = document.getElementById("material").value.trim();
-  const cost = parseFloat(document.getElementById("cost").value) || 0;
-  const paid = parseFloat(document.getElementById("paid").value) || 0;
-  const person = document.getElementById("person").value.trim();
+  let records = [];
 
-  if (!person || !material || cost <= 0) {
-    alert("Please fill all required fields (Person, Material, Cost).");
-    return;
+  // ---------------- Add or Update Record ----------------
+  async function addOrUpdateRecord() {
+    const category = document.getElementById("category").value.trim();
+    const cost = parseFloat(document.getElementById("cost").value) || 0;
+    const paid = parseFloat(document.getElementById("paid").value) || 0;
+    const person = document.getElementById("person").value.trim();
+
+    if (!person || !category || cost <= 0) {
+      alert("Please fill all required fields (Person, Category, Cost).");
+      return;
+    }
+
+    // Check if person exists in Firestore
+    const querySnapshot = await db.collection("records").where("person", "==", person).get();
+
+    if (!querySnapshot.empty) {
+      // Person exists → update
+      const docRef = querySnapshot.docs[0].ref;
+      const data = querySnapshot.docs[0].data();
+      const newTotal = data.total + cost;
+      const newPaid = data.paid + paid;
+      const newLeft = newTotal - newPaid;
+      const newCategories = [...data.categories, category];
+      const newHistory = [...data.history, `+${paid} paid on ${new Date().toLocaleString()} for ${category}`];
+
+      await docRef.update({
+        total: newTotal,
+        paid: newPaid,
+        left: newLeft,
+        categories: newCategories,
+        history: newHistory,
+        remarks: newLeft === 0 ? "Nil" : ""
+      });
+    } else {
+      // New record
+      await db.collection("records").add({
+        person,
+        total: cost,
+        paid: paid,
+        left: cost - paid,
+        remarks: (cost - paid) === 0 ? "Nil" : "",
+        categories: [category],
+        history: [`+${paid} paid on ${new Date().toLocaleString()} for ${category}`]
+      });
+    }
+
+    document.getElementById("category").value = "";
+    document.getElementById("cost").value = "";
+    document.getElementById("paid").value = "";
+    document.getElementById("person").value = "";
   }
 
-  let existingRecord = records.find(r => r.person === person);
+  // ---------------- Load Records Live ----------------
+  db.collection("records").onSnapshot(snapshot => {
+    records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    updateFilterOptions();
+    renderTable();
+  });
 
-  if (existingRecord) {
-    existingRecord.total += cost;
-    existingRecord.paid += paid;
-    existingRecord.left = existingRecord.total - existingRecord.paid;
-    existingRecord.remarks = existingRecord.left === 0 ? "Nil" : "";
-    existingRecord.materials.push(material);
-    existingRecord.history.push(`+${paid} paid on ${new Date().toLocaleString()} for ${material}`);
-  } else {
-    let left = cost - paid;
-    records.push({
-      person,
-      materials: [material],
-      total: cost,
-      paid,
-      left,
-      remarks: left === 0 ? "Nil" : "",
-      history: [`+${paid} paid on ${new Date().toLocaleString()} for ${material}`]
+  function updateFilterOptions() {
+    const filterSelect = document.getElementById("filterPerson");
+    const persons = [...new Set(records.map(r => r.person))];
+    filterSelect.innerHTML = '<option value="all">All</option>';
+    persons.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p;
+      filterSelect.appendChild(opt);
+    });
+  }
+
+  function renderTable() {
+    const tbody = document.querySelector("#recordsTable tbody");
+    tbody.innerHTML = "";
+    const filter = document.getElementById("filterPerson").value;
+
+    records.forEach((record) => {
+      if (filter !== "all" && record.person !== filter) return;
+
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${record.person}</td>
+        <td>${record.categories.join(", ")}</td>
+        <td>${record.total}</td>
+        <td>${record.paid}</td>
+        <td>${record.left}</td>
+        <td>${record.remarks}</td>
+        <td>
+          <details>
+            <summary>Show History</summary>
+            <div class="history">${record.history.join("<br>")}</div>
+          </details>
+        </td>
+        <td>
+          <button onclick="updateRow('${record.id}')">Update</button>
+          <button onclick="deleteRow('${record.id}')">Delete</button>
+        </td>
+      `;
+      tbody.appendChild(row);
     });
 
-    const filterSelect = document.getElementById("filterPerson");
-    let option = document.createElement("option");
-    option.value = person;
-    option.textContent = person;
-    filterSelect.appendChild(option);
+    const totalSum = records.reduce((sum, r) => sum + r.total, 0);
+    document.getElementById("grandTotalBox").textContent = "Grand Total: " + totalSum;
   }
 
-  renderTable();
-  updateGrandTotal();
-
-  document.getElementById("material").value = "";
-  document.getElementById("cost").value = "";
-  document.getElementById("paid").value = "";
-  document.getElementById("person").value = "";
-}
-
-function renderTable() {
-  const tbody = document.querySelector("#recordsTable tbody");
-  tbody.innerHTML = "";
-  const filter = document.getElementById("filterPerson").value;
-
-  records.forEach((record, index) => {
-    if (filter !== "all" && record.person !== filter) return;
-
-    let row = `<tr>
-      <td>${record.person}</td>
-      <td>${record.materials.join(", ")}</td>
-      <td>${record.total}</td>
-      <td>${record.paid}</td>
-      <td>${record.left}</td>
-      <td>${record.remarks}</td>
-      <td>
-        <details>
-          <summary>Show History</summary>
-          <div class="history">${record.history.join("<br>")}</div>
-        </details>
-      </td>
-      <td>
-        <button onclick="updateRow(${index})">Update</button>
-        <button onclick="deleteRecord(${index})">Delete</button>
-      </td>
-    </tr>`;
-    tbody.innerHTML += row;
-  });
-}
-
-function deleteRecord(index) {
-  if (confirm("Delete this record?")) {
-    records.splice(index, 1);
-    renderTable();
-    updateGrandTotal();
+  async function deleteRow(id) {
+    if (confirm("Delete this record?")) {
+      await db.collection("records").doc(id).delete();
+    }
   }
-}
 
-function updateRow(index) {
-  const addCost = parseFloat(prompt("Enter additional cost:")) || 0;
-  const addPaid = parseFloat(prompt("Enter additional paid amount:")) || 0;
-  const addMaterial = prompt("Enter material name for this update:").trim();
-  if (addCost <= 0 && addPaid <= 0) return;
+  async function updateRow(id) {
+    const addCost = parseFloat(prompt("Enter additional cost:")) || 0;
+    const addPaid = parseFloat(prompt("Enter additional paid amount:")) || 0;
+    const addCategory = prompt("Enter category name for this update:").trim();
 
-  const record = records[index];
-  record.total += addCost;
-  record.paid += addPaid;
-  record.left = record.total - record.paid;
-  record.materials.push(addMaterial || "Updated");
-  record.history.push(`+${addPaid} paid on ${new Date().toLocaleString()} for ${addMaterial || "Updated"}`);
-  record.remarks = record.left === 0 ? "Nil" : "";
+    if (addCost <= 0 && addPaid <= 0) return;
 
-  renderTable();
-  updateGrandTotal();
-}
+    const docRef = db.collection("records").doc(id);
+    const docSnap = await docRef.get();
+    if (!docSnap.exists) return;
 
-function updateGrandTotal() {
-  const total = records.reduce((sum, r) => sum + r.total, 0);
-  document.getElementById("grandTotalBox").textContent = "Grand Total: " + total;
-}
+    const data = docSnap.data();
+    const newTotal = data.total + addCost;
+    const newPaid = data.paid + addPaid;
+    const newLeft = newTotal - newPaid;
+    const newCategories = [...data.categories, addCategory || "Updated"];
+    const newHistory = [...data.history, `+${addPaid} paid on ${new Date().toLocaleString()} for ${addCategory || "Updated"}`];
 
-function filterTable() {
-  renderTable();
-}
+    await docRef.update({
+      total: newTotal,
+      paid: newPaid,
+      left: newLeft,
+      categories: newCategories,
+      history: newHistory,
+      remarks: newLeft === 0 ? "Nil" : ""
+    });
+  }
 </script>
-
 </body>
 </html>
