@@ -50,9 +50,6 @@
   <!-- Grand Total -->
   <div id="grandTotalBox" class="totals-box"></div>
 
-  <!-- Per-Person Totals -->
-  <div id="personTotals"></div>
-
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
@@ -138,27 +135,6 @@
       // Grand Total
       const totalSum = records.reduce((sum, r) => sum + r.total, 0);
       document.getElementById("grandTotalBox").textContent = "Grand Total: " + totalSum;
-
-      // Per-Person Totals
-      const totalsDiv = document.getElementById("personTotals");
-      totalsDiv.innerHTML = `
-        <h3>Per Person Totals</h3>
-        <table>
-          <thead>
-            <tr><th>Person</th><th>Total</th><th>Paid</th><th>Left</th></tr>
-          </thead>
-          <tbody>
-            ${Object.entries(grouped).map(([person, vals]) => `
-              <tr>
-                <td>${person}</td>
-                <td>${vals.total}</td>
-                <td>${vals.paid}</td>
-                <td>${vals.left}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
-      `;
     }
 
     // 🔹 Update Person (distribute Paid correctly)
@@ -167,7 +143,6 @@
       if (paidInput <= 0) return;
 
       const now = new Date().toLocaleString();
-      // Sort records to pay oldest debts first
       const personDocs = records
         .filter(r => r.person === person && r.left > 0)
         .sort((a,b) => a.left - b.left); 
