@@ -6,7 +6,7 @@
 <title>Construction Cost</title>
 <style>
   body { font-family: Arial, sans-serif; margin: 20px; color: #000; background: #fff; }
-  h2 { font-weight: bold; font-size: 36px; margin-bottom: 20px; text-align: center; } /* Bigger Title */
+  h2 { font-weight: bold; font-size: 36px; margin-bottom: 20px; text-align: center; }
   .grand-total { font-weight: bold; font-size: 20px; text-align: center; margin: 20px auto; border: 2px solid #000; display: inline-block; padding: 10px 20px; }
   h3 { margin-top: 0; text-align: center; }
 
@@ -47,7 +47,7 @@
 <div style="text-align:center;">
   <div class="grand-total" id="grandTotalBox">Grand Total: 0</div>
 </div>
-<div id="personTotals"></div> <!-- per-person summary -->
+<div id="personTotals"></div>
 
 <div class="form-group">
   <input type="text" id="category" placeholder="Category Name">
@@ -61,7 +61,6 @@
   <thead>
     <tr>
       <th>Person</th>
-      <th>Category Name</th>
       <th>Total Cost</th>
       <th>Paid</th>
       <th>Left</th>
@@ -109,7 +108,7 @@ async function addOrUpdateRecord() {
     const newTotal = data.total + cost;
     const newPaid = data.paid + paid;
     const newLeft = newTotal - newPaid;
-    const newHistory = [...data.history, `Paid: ${paid} on ${now}`]; // ✅ Only Paid + Date
+    const newHistory = [...data.history, `${category}: Paid ${paid} on ${now}`]; // ✅ include category
 
     await docRef.update({
       total: newTotal,
@@ -124,7 +123,7 @@ async function addOrUpdateRecord() {
       total: cost,
       paid: paid,
       left: cost - paid,
-      history: [`Paid: ${paid} on ${now}`] // ✅ Only Paid + Date
+      history: [`${category}: Paid ${paid} on ${now}`] // ✅ include category
     });
   }
 
@@ -147,7 +146,6 @@ function renderTable() {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td data-label="Person">${record.person}</td>
-      <td data-label="Category Name">${record.category}</td>
       <td data-label="Total">${record.total}</td>
       <td data-label="Paid">${record.paid}</td>
       <td data-label="Left">${record.left}</td>
@@ -218,7 +216,8 @@ async function updateRow(id) {
   const newTotal = data.total + totalInput;
   const newPaid = data.paid + paidInput;
   const newLeft = newTotal - newPaid;
-  const newHistory = [...data.history, `Paid: ${paidInput} on ${new Date().toLocaleString()}`]; // ✅ Only Paid + Date
+  const now = new Date().toLocaleString();
+  const newHistory = [...data.history, `${data.category}: Paid ${paidInput} on ${now}`]; // ✅ include category
 
   await docRef.update({
     total: newTotal,
