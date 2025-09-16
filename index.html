@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Construction Cost Tracker</title>
+  <title>Construction Cost</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -85,7 +85,7 @@
   <div id="personTotals"></div>
 
 <script>
-  // ✅ Firebase config (replace with your project values)
+  // ✅ Firebase config (replace with your own project values)
   const firebaseConfig = {
     apiKey: "AIzaSyBV7tHimRYOI-zEN-4eythyPc39bafLHVY",
   authDomain: "costhouse25.firebaseapp.com",
@@ -100,7 +100,7 @@
 
   let records = {};
 
-  // Add new record
+  // Add record
   function addRecord() {
     const person = document.getElementById("person").value.trim();
     const category = document.getElementById("category").value.trim();
@@ -130,7 +130,7 @@
     document.getElementById("paid").value = "";
   }
 
-  // Update Paid for a person
+  // Update Paid (per person)
   function updatePaid(person) {
     const input = document.getElementById("updatePaid_" + person);
     const addPaid = parseFloat(input.value) || 0;
@@ -148,7 +148,7 @@
     input.value = "";
   }
 
-  // Render Grand Total + Per Person table
+  // Render per person totals
   function render() {
     const grandTotal = Object.values(records).reduce((sum, r) => sum + r.total, 0);
     document.getElementById("grandTotalBox").textContent = "Grand Total: " + grandTotal;
@@ -201,7 +201,7 @@
     div.appendChild(table);
   }
 
-  // Listen for Firebase changes
+  // Load data from Firebase
   db.ref("records").on("value", snapshot => {
     records = snapshot.val() || {};
     render();
