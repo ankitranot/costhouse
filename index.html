@@ -79,9 +79,12 @@
       if (!person || !category || total <= 0) return;
 
       const newRecord = {
-        person, category,
-        total, paid: 0, left: total,
-        history: [`${category}: Added ${total} on ${new Date().toLocaleString()}`] // ✅ category only here
+        person,
+        category,
+        total,
+        paid: 0,
+        left: total,
+        history: [`${category}: Added ${total} on ${new Date().toLocaleString()}`]
       };
       await db.collection("records").add(newRecord);
 
@@ -96,16 +99,14 @@
       renderTable();
     });
 
-    // 🔹 Render Table (Grouped by Person)
+    // 🔹 Render Table
     function renderTable() {
       const tbody = document.querySelector("#recordsTable tbody");
       tbody.innerHTML = "";
 
       const grouped = {};
       records.forEach(r => {
-        if (!grouped[r.person]) {
-          grouped[r.person] = { total: 0, paid: 0, left: 0, history: [], ids: [] };
-        }
+        if (!grouped[r.person]) grouped[r.person] = { total: 0, paid: 0, left: 0, history: [], ids: [] };
         grouped[r.person].total += r.total;
         grouped[r.person].paid += r.paid;
         grouped[r.person].left += r.left;
@@ -160,31 +161,39 @@
       `;
     }
 
-    // 🔹 Update Person (Paid only, no category in history)
+    // 🔹 Update Person (distribute Paid correctly)
     async function updatePerson(person) {
-      const paidInput = parseFloat(document.getElementById(`paid_${person}`).value) || 0;
+      let paidInput = parseFloat(document.getElementById(`paid_${person}`).value) || 0;
       if (paidInput <= 0) return;
 
       const now = new Date().toLocaleString();
-      const personDocs = records.filter(r => r.person === person);
+      // Sort records to pay oldest debts first
+      const personDocs = records
+        .filter(r => r.person === person && r.left > 0)
+        .sort((a,b) => a.left - b.left); 
 
       for (const doc of personDocs) {
+        if (paidInput <= 0) break;
+
         const docRef = db.collection("records").doc(doc.id);
         const data = (await docRef.get()).data();
 
-        const newPaid = data.paid + paidInput;
-        const newLeft = data.total - newPaid;
+        const availableLeft = data.total - data.paid;
+        const payNow = Math.min(availableLeft, paidInput);
 
-        // ✅ no category when updating Paid
-        const newHistory = [...data.history, `Paid ${paidInput} on ${now}`];
+        const newPaid = data.paid + payNow;
+        const newLeft = data.total - newPaid;
+        const newHistory = [...data.history, `Paid ${payNow} on ${now}`];
 
         await docRef.update({ paid: newPaid, left: newLeft, history: newHistory });
+
+        paidInput -= payNow;
       }
 
       document.getElementById(`paid_${person}`).value = "";
     }
 
-    // 🔹 Delete Person (all their records)
+    // 🔹 Delete Person
     async function deletePerson(person) {
       if (!confirm(`Delete all records for ${person}?`)) return;
       const personDocs = records.filter(r => r.person === person);
