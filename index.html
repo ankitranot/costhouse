@@ -4,159 +4,194 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Construction Cost Tracker</title>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f4f7f9;
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2, h3 { margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #f4f4f4; }
+    input[type="text"], input[type="number"] {
+      padding: 5px; margin: 2px; width: 120px;
     }
-    h1 { text-align: center; color: #333; }
-    table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #fff; }
-    th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
-    th { background: #0077cc; color: #fff; }
-    input, select, button { padding: 8px; margin: 5px; }
-    .history { margin-top: 20px; padding: 15px; background: #fff; border: 1px solid #ccc; }
-    .history-entry { padding: 6px 0; border-bottom: 1px solid #eee; }
-    .history-entry b { color: #0077cc; }
-    .total-row { font-weight: bold; background: #f0f0f0; }
+    button { padding: 5px 10px; margin: 2px; cursor: pointer; }
+    button.delete { background: red; color: #fff; }
+    .totals-box { font-weight: bold; margin: 10px 0; }
+    details { cursor: pointer; }
   </style>
 </head>
 <body>
-  <h1>🏗 Construction Cost Tracker</h1>
+  <h2>Construction Cost Tracker</h2>
 
   <!-- Input Form -->
   <div>
-    <input type="text" id="person" placeholder="Person Name">
+    <input type="text" id="person" placeholder="Person">
     <input type="text" id="category" placeholder="Category">
-    <input type="number" id="cost" placeholder="Cost">
+    <input type="number" id="total" placeholder="Total Cost">
     <button onclick="addRecord()">Add Record</button>
   </div>
 
-  <!-- Per Person Table -->
-  <table id="personTable">
+  <!-- Records Table -->
+  <h3>All Records (Grouped by Person)</h3>
+  <table id="recordsTable">
     <thead>
       <tr>
         <th>Person</th>
-        <th>Total Cost</th>
+        <th>Total</th>
         <th>Paid</th>
         <th>Left</th>
+        <th>Add Paid</th>
+        <th>History</th>
+        <th>Delete</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 
-  <!-- History -->
-  <div class="history">
-    <h3>History</h3>
-    <div id="historyList"></div>
-  </div>
+  <!-- Grand Total -->
+  <div id="grandTotalBox" class="totals-box"></div>
 
+  <!-- Per-Person Totals -->
+  <div id="personTotals"></div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script>
-    // Firebase Config (replace with your project credentials)
+    // 🔹 Firebase Config
     const firebaseConfig = {
       apiKey: "AIzaSyBV7tHimRYOI-zEN-4eythyPc39bafLHVY",
-  authDomain: "costhouse25.firebaseapp.com",
-  projectId: "costhouse25",
-  storageBucket: "costhouse25.firebasestorage.app",
-  messagingSenderId: "1031854363789",
-  appId: "1:1031854363789:web:2db3e48f1c774a12297ec4"
+      authDomain: "costhouse25.firebaseapp.com",
+      projectId: "costhouse25",
+      storageBucket: "costhouse25.firebasestorage.app",
+      messagingSenderId: "1031854363789",
+      appId: "1:1031854363789:web:2db3e48f1c774a12297ec4"
     };
-
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    const db = firebase.firestore();
 
-    let records = {};
+    let records = [];
 
-    // Add new record
-    function addRecord() {
-      let person = document.getElementById("person").value.trim();
-      let category = document.getElementById("category").value.trim();
-      let cost = parseFloat(document.getElementById("cost").value);
+    // 🔹 Add Record
+    async function addRecord() {
+      const person = document.getElementById("person").value.trim();
+      const category = document.getElementById("category").value.trim();
+      const total = parseFloat(document.getElementById("total").value) || 0;
+      if (!person || !category || total <= 0) return;
 
-      if (!person || !category || isNaN(cost)) {
-        alert("Please fill all fields");
-        return;
-      }
-
-      let date = new Date().toLocaleDateString();
-
-      if (!records[person]) {
-        records[person] = { total: 0, paid: 0, history: [] };
-      }
-
-      records[person].total += cost;
-      records[person].history.unshift({ date, category, cost });
-
-      saveData();
-      renderTables();
+      const newRecord = {
+        person, category,
+        total, paid: 0, left: total,
+        history: [`${category}: Added ${total} on ${new Date().toLocaleString()}`] // ✅ category only here
+      };
+      await db.collection("records").add(newRecord);
 
       document.getElementById("person").value = "";
       document.getElementById("category").value = "";
-      document.getElementById("cost").value = "";
+      document.getElementById("total").value = "";
     }
 
-    // Save to Firebase
-    function saveData() {
-      db.ref("constructionRecords").set(records);
-    }
+    // 🔹 Real-Time Listener
+    db.collection("records").onSnapshot(snapshot => {
+      records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderTable();
+    });
 
-    // Load from Firebase
-    function loadData() {
-      db.ref("constructionRecords").on("value", snapshot => {
-        if (snapshot.exists()) {
-          records = snapshot.val();
-          renderTables();
-        }
-      });
-    }
-
-    // Update Paid amount
-    function updatePaid(person, value) {
-      records[person].paid = parseFloat(value) || 0;
-      saveData();
-      renderTables();
-    }
-
-    // Render Person Table + History
-    function renderTables() {
-      let tbody = document.querySelector("#personTable tbody");
+    // 🔹 Render Table (Grouped by Person)
+    function renderTable() {
+      const tbody = document.querySelector("#recordsTable tbody");
       tbody.innerHTML = "";
 
-      let historyDiv = document.getElementById("historyList");
-      historyDiv.innerHTML = "";
+      const grouped = {};
+      records.forEach(r => {
+        if (!grouped[r.person]) {
+          grouped[r.person] = { total: 0, paid: 0, left: 0, history: [], ids: [] };
+        }
+        grouped[r.person].total += r.total;
+        grouped[r.person].paid += r.paid;
+        grouped[r.person].left += r.left;
+        grouped[r.person].history = grouped[r.person].history.concat(r.history);
+        grouped[r.person].ids.push(r.id);
+      });
 
-      for (let person in records) {
-        let row = document.createElement("tr");
-        let left = records[person].total - records[person].paid;
-
+      Object.entries(grouped).forEach(([person, vals]) => {
+        const row = document.createElement("tr");
         row.innerHTML = `
-          <td>${person}</td>
-          <td contenteditable="true" onblur="updateTotal('${person}', this.innerText)">${records[person].total}</td>
-          <td contenteditable="true" onblur="updatePaid('${person}', this.innerText)">${records[person].paid}</td>
-          <td>${left}</td>
+          <td data-label="Person">${person}</td>
+          <td data-label="Total">${vals.total}</td>
+          <td data-label="Paid">${vals.paid}</td>
+          <td data-label="Left">${vals.left}</td>
+          <td data-label="Add Paid">
+            <div>
+              <input type="number" placeholder="Add Paid" id="paid_${person}">
+              <button onclick="updatePerson('${person}')">Update</button>
+            </div>
+          </td>
+          <td data-label="History">
+            <details><summary>Show</summary>${vals.history.join("<br>")}</details>
+          </td>
+          <td data-label="Delete"><button class="delete" onclick="deletePerson('${person}')">Delete</button></td>
         `;
         tbody.appendChild(row);
+      });
 
-        records[person].history.forEach(entry => {
-          let div = document.createElement("div");
-          div.className = "history-entry";
-          div.innerHTML = `<b>${entry.category}</b> - ₹${entry.cost} (<b>${entry.date}</b>)`;
-          historyDiv.appendChild(div);
-        });
+      // Grand Total
+      const totalSum = records.reduce((sum, r) => sum + r.total, 0);
+      document.getElementById("grandTotalBox").textContent = "Grand Total: " + totalSum;
+
+      // Per-Person Totals
+      const totalsDiv = document.getElementById("personTotals");
+      totalsDiv.innerHTML = `
+        <h3>Per Person Totals</h3>
+        <table>
+          <thead>
+            <tr><th>Person</th><th>Total</th><th>Paid</th><th>Left</th></tr>
+          </thead>
+          <tbody>
+            ${Object.entries(grouped).map(([person, vals]) => `
+              <tr>
+                <td>${person}</td>
+                <td>${vals.total}</td>
+                <td>${vals.paid}</td>
+                <td>${vals.left}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // 🔹 Update Person (Paid only, no category in history)
+    async function updatePerson(person) {
+      const paidInput = parseFloat(document.getElementById(`paid_${person}`).value) || 0;
+      if (paidInput <= 0) return;
+
+      const now = new Date().toLocaleString();
+      const personDocs = records.filter(r => r.person === person);
+
+      for (const doc of personDocs) {
+        const docRef = db.collection("records").doc(doc.id);
+        const data = (await docRef.get()).data();
+
+        const newPaid = data.paid + paidInput;
+        const newLeft = data.total - newPaid;
+
+        // ✅ no category when updating Paid
+        const newHistory = [...data.history, `Paid ${paidInput} on ${now}`];
+
+        await docRef.update({ paid: newPaid, left: newLeft, history: newHistory });
+      }
+
+      document.getElementById(`paid_${person}`).value = "";
+    }
+
+    // 🔹 Delete Person (all their records)
+    async function deletePerson(person) {
+      if (!confirm(`Delete all records for ${person}?`)) return;
+      const personDocs = records.filter(r => r.person === person);
+      for (const doc of personDocs) {
+        await db.collection("records").doc(doc.id).delete();
       }
     }
-
-    // Update Total amount
-    function updateTotal(person, value) {
-      records[person].total = parseFloat(value) || 0;
-      saveData();
-      renderTables();
-    }
-
-    loadData();
   </script>
 </body>
 </html>
