@@ -8,6 +8,7 @@
   body { font-family: Arial, sans-serif; margin: 20px; color: #000; background: #fff; }
   h2 { font-weight: bold; font-size: 28px; margin-bottom: 20px; text-align: center; }
   .grand-total { font-weight: bold; font-size: 20px; text-align: center; margin-bottom: 20px; border: 2px solid #000; display: inline-block; padding: 10px 20px; }
+  h3 { margin-top: 0; text-align: center; }
 
   .form-group { display: flex; flex-wrap: wrap; margin-bottom: 10px; gap: 5px; }
   input, button, select { padding: 8px; font-size: 14px; border-radius: 5px; border: 1px solid #000; }
@@ -45,6 +46,7 @@
 
 <h2>Construction Cost</h2>
 <div class="grand-total" id="grandTotalBox">Grand Total: 0</div>
+<div id="personTotals"></div> <!-- per-person summary -->
 
 <div class="form-group">
   <input type="text" id="category" placeholder="Category Name">
@@ -91,7 +93,7 @@ const db = firebase.firestore();
 
 let records = [];
 
-// Add or merge record if person exists
+// Add or merge record if person+category exists
 async function addOrUpdateRecord() {
   const category = document.getElementById("category").value.trim();
   const cost = parseFloat(document.getElementById("cost").value) || 0;
@@ -99,7 +101,11 @@ async function addOrUpdateRecord() {
   const person = document.getElementById("person").value.trim();
   if (!person || !category || cost <= 0) { alert("Please fill all required fields."); return; }
 
-  const querySnapshot = await db.collection("records").where("person", "==", person).get();
+  const querySnapshot = await db.collection("records")
+    .where("person", "==", person)
+    .where("category", "==", category)
+    .get();
+
   if (!querySnapshot.empty) {
     const docRef = querySnapshot.docs[0].ref;
     const data = querySnapshot.docs[0].data();
@@ -107,24 +113,22 @@ async function addOrUpdateRecord() {
     const newTotal = data.total + cost;
     const newPaid = data.paid + paid;
     const newLeft = newTotal - newPaid;
-    const newCategories = Array.from(new Set([...data.categories, category]));
-    const newHistory = [...data.history, `+${paid} on ${new Date().toLocaleString()}`];
+    const newHistory = [...data.history, `+${paid} paid & +${cost} total on ${new Date().toLocaleString()}`];
 
     await docRef.update({
       total: newTotal,
       paid: newPaid,
       left: newLeft,
-      categories: newCategories,
       history: newHistory
     });
   } else {
     await db.collection("records").add({
       person,
+      category,
       total: cost,
       paid: paid,
       left: cost - paid,
-      categories: [category],
-      history: [`+${paid} on ${new Date().toLocaleString()}`]
+      history: [`+${paid} paid & +${cost} total on ${new Date().toLocaleString()}`]
     });
   }
 
@@ -163,7 +167,7 @@ function renderTable() {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td data-label="Person">${record.person}</td>
-      <td data-label="Category">${record.categories.join(", ")}</td>
+      <td data-label="Category">${record.category}</td>
       <td data-label="Total">${record.total}</td>
       <td data-label="Paid">${record.paid}</td>
       <td data-label="Left">${record.left}</td>
@@ -180,8 +184,45 @@ function renderTable() {
     tbody.appendChild(row);
   });
 
+  // 🔹 Grand Total
   const totalSum = records.reduce((sum, r) => sum + r.total, 0);
   document.getElementById("grandTotalBox").textContent = "Grand Total: " + totalSum;
+
+  // 🔹 Per-Person Totals
+  const personTotals = {};
+  records.forEach(r => {
+    if (!personTotals[r.person]) {
+      personTotals[r.person] = { total: 0, paid: 0, left: 0 };
+    }
+    personTotals[r.person].total += r.total;
+    personTotals[r.person].paid += r.paid;
+    personTotals[r.person].left += r.left;
+  });
+
+  const totalsDiv = document.getElementById("personTotals");
+  totalsDiv.innerHTML = `
+    <h3>Per Person Totals</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Person</th>
+          <th>Total</th>
+          <th>Paid</th>
+          <th>Left</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${Object.entries(personTotals).map(([person, vals]) => `
+          <tr>
+            <td>${person}</td>
+            <td>${vals.total}</td>
+            <td>${vals.paid}</td>
+            <td>${vals.left}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
 }
 
 async function updateRow(id) {
