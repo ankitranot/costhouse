@@ -6,12 +6,12 @@
 <title>Construction Cost</title>
 <style>
   body { font-family: Arial, sans-serif; margin: 20px; color: #000; background: #fff; }
-  h2 { font-weight: bold; font-size: 28px; margin-bottom: 20px; text-align: center; }
-  .grand-total { font-weight: bold; font-size: 20px; text-align: center; margin-bottom: 20px; border: 2px solid #000; display: inline-block; padding: 10px 20px; }
+  h2 { font-weight: bold; font-size: 36px; margin-bottom: 20px; text-align: center; } /* Bigger Title */
+  .grand-total { font-weight: bold; font-size: 20px; text-align: center; margin: 20px auto; border: 2px solid #000; display: inline-block; padding: 10px 20px; }
   h3 { margin-top: 0; text-align: center; }
 
-  .form-group { display: flex; flex-wrap: wrap; margin-bottom: 10px; gap: 5px; }
-  input, button, select { padding: 8px; font-size: 14px; border-radius: 5px; border: 1px solid #000; }
+  .form-group { display: flex; flex-wrap: wrap; margin-bottom: 10px; gap: 5px; justify-content: center; }
+  input, button { padding: 8px; font-size: 14px; border-radius: 5px; border: 1px solid #000; }
   button { background: #000; color: #fff; cursor: pointer; }
   button.delete { background: #ff4444; }
 
@@ -19,7 +19,6 @@
   th, td { border: 1px solid #000; padding: 8px; text-align: center; }
   th { background: #f2f2f2; }
   tr:nth-child(even){ background:#f9f9f9; }
-  .history { font-size: 13px; text-align: left; }
   details { cursor: pointer; }
 
   .row-inputs { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 5px; }
@@ -27,10 +26,10 @@
   .row-inputs button { width: 25%; }
 
   @media(max-width:768px){
-    h2 { font-size: 22px; }
+    h2 { font-size: 28px; }
     .grand-total { font-size: 18px; padding: 8px 15px; }
-    .form-group { flex-direction: column; }
-    input, button, select { width: 100%; margin-bottom: 8px; }
+    .form-group { flex-direction: column; align-items: center; }
+    input, button { width: 100%; margin-bottom: 8px; }
 
     table, thead, tbody, th, td, tr { display: block; width: 100%; }
     thead { display: none; }
@@ -45,7 +44,9 @@
 <body>
 
 <h2>Construction Cost</h2>
-<div class="grand-total" id="grandTotalBox">Grand Total: 0</div>
+<div style="text-align:center;">
+  <div class="grand-total" id="grandTotalBox">Grand Total: 0</div>
+</div>
 <div id="personTotals"></div> <!-- per-person summary -->
 
 <div class="form-group">
@@ -56,18 +57,11 @@
   <button onclick="addOrUpdateRecord()">Add / Update</button>
 </div>
 
-<div class="form-group">
-  <label>Filter by Person:</label>
-  <select id="filterPerson" onchange="renderTable()">
-    <option value="all">All</option>
-  </select>
-</div>
-
 <table id="recordsTable">
   <thead>
     <tr>
       <th>Person</th>
-      <th>Category</th>
+      <th>Category Name</th>
       <th>Total Cost</th>
       <th>Paid</th>
       <th>Left</th>
@@ -106,6 +100,8 @@ async function addOrUpdateRecord() {
     .where("category", "==", category)
     .get();
 
+  const now = new Date().toLocaleString();
+
   if (!querySnapshot.empty) {
     const docRef = querySnapshot.docs[0].ref;
     const data = querySnapshot.docs[0].data();
@@ -113,7 +109,7 @@ async function addOrUpdateRecord() {
     const newTotal = data.total + cost;
     const newPaid = data.paid + paid;
     const newLeft = newTotal - newPaid;
-    const newHistory = [...data.history, `+${paid} paid & +${cost} total on ${new Date().toLocaleString()}`];
+    const newHistory = [...data.history, `Paid: ${paid} on ${now}`]; // ✅ Only Paid + Date
 
     await docRef.update({
       total: newTotal,
@@ -128,7 +124,7 @@ async function addOrUpdateRecord() {
       total: cost,
       paid: paid,
       left: cost - paid,
-      history: [`+${paid} paid & +${cost} total on ${new Date().toLocaleString()}`]
+      history: [`Paid: ${paid} on ${now}`] // ✅ Only Paid + Date
     });
   }
 
@@ -140,34 +136,18 @@ async function addOrUpdateRecord() {
 
 db.collection("records").onSnapshot(snapshot => {
   records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  updateFilterOptions();
   renderTable();
 });
-
-function updateFilterOptions() {
-  const filterSelect = document.getElementById("filterPerson");
-  const persons = [...new Set(records.map(r => r.person))];
-  filterSelect.innerHTML = '<option value="all">All</option>';
-  persons.forEach(p => {
-    const opt = document.createElement("option");
-    opt.value = p;
-    opt.textContent = p;
-    filterSelect.appendChild(opt);
-  });
-}
 
 function renderTable() {
   const tbody = document.querySelector("#recordsTable tbody");
   tbody.innerHTML = "";
-  const filter = document.getElementById("filterPerson").value;
 
   records.forEach((record) => {
-    if (filter !== "all" && record.person !== filter) return;
-
     const row = document.createElement("tr");
     row.innerHTML = `
       <td data-label="Person">${record.person}</td>
-      <td data-label="Category">${record.category}</td>
+      <td data-label="Category Name">${record.category}</td>
       <td data-label="Total">${record.total}</td>
       <td data-label="Paid">${record.paid}</td>
       <td data-label="Left">${record.left}</td>
@@ -238,7 +218,7 @@ async function updateRow(id) {
   const newTotal = data.total + totalInput;
   const newPaid = data.paid + paidInput;
   const newLeft = newTotal - newPaid;
-  const newHistory = [...data.history, `+${paidInput} paid & +${totalInput} total on ${new Date().toLocaleString()}`];
+  const newHistory = [...data.history, `Paid: ${paidInput} on ${new Date().toLocaleString()}`]; // ✅ Only Paid + Date
 
   await docRef.update({
     total: newTotal,
